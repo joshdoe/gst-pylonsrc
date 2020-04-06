@@ -1194,11 +1194,11 @@ gst_pylonsrc_start (GstBaseSrc * src)
   }
 
   // Set pixel format.
-  g_autoptr(GString) pixelFormat = g_string_new(NULL);
+  GString *pixelFormat = g_string_new(NULL);
   pylonsrc->imageFormat = g_ascii_strdown(pylonsrc->imageFormat, -1);
   if(strncmp("bayer", pylonsrc->imageFormat, 5) == 0) {
-    g_autoptr(GString) format = g_string_new(NULL);
-    g_autoptr(GString) filter = g_string_new(NULL);
+    GString *format = g_string_new(NULL);
+    GString *filter = g_string_new(NULL);
     
     if(!pylonsrc->flipx && !pylonsrc->flipy) {
       g_string_printf(filter, "RG");
@@ -1210,12 +1210,15 @@ gst_pylonsrc_start (GstBaseSrc * src)
       g_string_printf(filter, "BG");
     }
     g_string_printf(pixelFormat, "Bayer%s%s", filter->str, &pylonsrc->imageFormat[5]);
+    g_string_free(filter, TRUE);
     g_string_printf(format, "EnumEntry_PixelFormat_%s", pixelFormat->str);
 
     if(!PylonDeviceFeatureIsAvailable(pylonsrc->deviceHandle, format->str)) {
+      g_string_free(format, TRUE);
       GST_ELEMENT_ERROR(pylonsrc, RESOURCE, FAILED, ("Failed to initialise the camera"), ("Camera doesn't support Bayer%s.", &pylonsrc->imageFormat[5]));
       goto error;
     }
+    g_string_free(format, TRUE);
   } else if (strcmp(pylonsrc->imageFormat, "rgb8") == 0) {
     if(PylonDeviceFeatureIsAvailable(pylonsrc->deviceHandle, "EnumEntry_PixelFormat_RGB8")) {
       g_string_printf(pixelFormat, "RGB8");
@@ -1264,6 +1267,7 @@ gst_pylonsrc_start (GstBaseSrc * src)
   } else {
     GST_WARNING_OBJECT(pylonsrc, "Couldn't read pixel size from the camera");
   }
+  g_string_free(pixelFormat, TRUE);
 
 
   // Set whether test image will be shown
