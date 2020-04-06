@@ -37,10 +37,9 @@
 
 #include "gstpylonsrc.h"
 #include <gst/gst.h>
-
+#include <glib.h>
 #include <malloc.h> //malloc
 #include <string.h> //memcpy, strcmp
-#include <unistd.h> //sleep
 
 #ifdef HAVE_ORC
 #include <orc/orc.h>
@@ -1040,7 +1039,7 @@ gst_pylonsrc_start (GstBaseSrc * src)
         pylonc_terminate();
 
         GST_MESSAGE_OBJECT(pylonsrc, "Camera reset. Waiting 6 seconds for it to fully reboot.");
-        sleep(6);
+        g_usleep(6 * G_USEC_PER_SEC);
 
         pylonc_initialize();
         res = PylonEnumerateDevices( &numDevices );
