@@ -2291,6 +2291,6 @@ pylonc_print_camera_info(GstPylonsrc* pylonsrc, PYLON_DEVICE_HANDLE deviceHandle
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
-    pylonsrc,
+    pylon,
     "A plugin that uses Basler's pylon5 to get data from Basler's USB3 Vision cameras.",
     plugin_init, VERSION, "LGPL", PACKAGE_NAME, GST_PACKAGE_ORIGIN);
