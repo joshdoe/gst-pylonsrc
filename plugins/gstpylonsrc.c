@@ -472,9 +472,7 @@ gst_pylonsrc_init (GstPylonsrc *pylonsrc)
   // Mark this element as a live source (disable preroll)
   gst_base_src_set_live(GST_BASE_SRC(pylonsrc), TRUE);
   gst_base_src_set_format(GST_BASE_SRC(pylonsrc), GST_FORMAT_TIME);
-  #pragma GCC diagnostic ignored "-Wincompatible-pointer-types" //Our class inherits the base source, so this will work.
-  gst_base_src_set_do_timestamp(pylonsrc, TRUE);
-  #pragma GCC diagnostic pop
+  gst_base_src_set_do_timestamp(GST_BASE_SRC(pylonsrc), TRUE);
 }
 
 /* plugin's parameters/properties */
@@ -2014,9 +2012,7 @@ gst_pylonsrc_start (GstBaseSrc * src)
   }
   
   for(i = 0; i <NUM_BUFFERS; ++i) {
-    #pragma GCC diagnostic ignored "-Wint-to-pointer-cast" // This line comes from the SDK docs.
     res = PylonStreamGrabberQueueBuffer(pylonsrc->streamGrabber, bufferHandle[i], (void *) i);
-    #pragma GCC diagnostic pop
     PYLONC_CHECK_ERROR(pylonsrc, res);
   }
 
