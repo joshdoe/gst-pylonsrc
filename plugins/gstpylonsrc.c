@@ -40,7 +40,6 @@
 
 #include <malloc.h> //malloc
 #include <string.h> //memcpy, strcmp
-#include <inttypes.h> //int64 printing
 #include <unistd.h> //sleep
 
 #ifdef HAVE_ORC
@@ -218,7 +217,7 @@ gst_pylonsrc_class_init (GstPylonsrcClass * klass)
       g_param_spec_boolean ("limitbandwidth", "Link Throughput limit mode", "(true/false) Bandwidth limit mode. Disabling this will potentially allow the camera to reach higher frames per second, but can potentially damage your camera. Use with caution. Running the plugin without specifying this parameter will reset the value stored on the camera to `true`.", TRUE,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_MAXBANDWIDTH,
-      g_param_spec_int64 ("maxbandwidth", "Maximum bandwidth", "(Bytes per second) This property sets the maximum bandwidth the camera can use. The camera will only use as much as it needs for the specified resolution and framerate. This setting will have no effect if limitbandwidth is set to off. Note that the camera will remember this setting, and will use values from the previous runs if you relaunch without specifying this parameter. Reconnect the camera or use the reset parameter to reset.", 0,
+      g_param_spec_int ("maxbandwidth", "Maximum bandwidth", "(Bytes per second) This property sets the maximum bandwidth the camera can use. The camera will only use as much as it needs for the specified resolution and framerate. This setting will have no effect if limitbandwidth is set to off. Note that the camera will remember this setting, and will use values from the previous runs if you relaunch without specifying this parameter. Reconnect the camera or use the reset parameter to reset.", 0,
           999999999, 0,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_SENSORREADOUTMODE,
@@ -589,7 +588,7 @@ gst_pylonsrc_set_property (GObject * object, guint property_id,
       pylonsrc->magentasaturation = g_value_get_double(value);
       break;
     case PROP_MAXBANDWIDTH:
-      pylonsrc->maxBandwidth = g_value_get_int64(value);      
+      pylonsrc->maxBandwidth = g_value_get_int(value);
       break;
     case PROP_FLIPX:
       pylonsrc->flipx = g_value_get_boolean(value);
@@ -791,8 +790,8 @@ gst_pylonsrc_get_property (GObject * object, guint property_id,
     case PROP_COLORMAGENTASATURATION:
       g_value_set_double(value, pylonsrc->magentasaturation);
       break;
-    case PROP_MAXBANDWIDTH:      
-      g_value_set_int64(value, pylonsrc->maxBandwidth);
+    case PROP_MAXBANDWIDTH:
+      g_value_set_int(value, pylonsrc->maxBandwidth);
       break;
     case PROP_FLIPX:
       g_value_set_boolean(value, pylonsrc->flipx);
@@ -931,7 +930,7 @@ gst_pylonsrc_get_caps (GstBaseSrc * src, GstCaps * filter)
     "height", G_TYPE_INT, pylonsrc->height,
     "framerate", GST_TYPE_FRACTION_RANGE, 0, 1, G_MAXINT, 1, NULL);
     
-    GST_DEBUG_OBJECT(pylonsrc, "The following caps were sent: %s, %s, %"PRId64"x%"PRId64", variable fps.", type, format, pylonsrc->width, pylonsrc->height);
+    GST_DEBUG_OBJECT(pylonsrc, "The following caps were sent: %s, %s, %dx%d, variable fps.", type, format, pylonsrc->width, pylonsrc->height);
     return caps;
   }
 }
@@ -1064,10 +1063,10 @@ gst_pylonsrc_start (GstBaseSrc * src)
   _Bool cameraReportsBinningHorizontal = PylonDeviceFeatureIsImplemented(pylonsrc->deviceHandle, "BinningHorizontal");
   _Bool cameraReportsBinningVertical = PylonDeviceFeatureIsImplemented(pylonsrc->deviceHandle, "BinningVertical");
   if(cameraReportsBinningVertical && cameraReportsBinningHorizontal) {
-    GST_DEBUG_OBJECT(pylonsrc, "Setting horizontal binning to %"PRId64, pylonsrc->binningh);
+    GST_DEBUG_OBJECT(pylonsrc, "Setting horizontal binning to %d", pylonsrc->binningh);
     res = PylonDeviceSetIntegerFeature(pylonsrc->deviceHandle, "BinningHorizontal", pylonsrc->binningh);
     PYLONC_CHECK_ERROR(pylonsrc, res);
-    GST_DEBUG_OBJECT(pylonsrc, "Setting vertical binning to %"PRId64, pylonsrc->binningv);
+    GST_DEBUG_OBJECT(pylonsrc, "Setting vertical binning to %d", pylonsrc->binningv);
     res = PylonDeviceSetIntegerFeature(pylonsrc->deviceHandle, "BinningVertical", pylonsrc->binningv);
     PYLONC_CHECK_ERROR(pylonsrc, res);
   }
@@ -1091,13 +1090,16 @@ gst_pylonsrc_start (GstBaseSrc * src)
   // Max Width and Height.
   cameraReportsWidth = PylonDeviceFeatureIsImplemented(pylonsrc->deviceHandle, "WidthMax");
   cameraReportsHeight = PylonDeviceFeatureIsImplemented(pylonsrc->deviceHandle, "HeightMax");
-  if(cameraReportsWidth && cameraReportsHeight) {      
-    res = PylonDeviceGetIntegerFeature(pylonsrc->deviceHandle, "WidthMax", &pylonsrc->maxWidth);
+  if(cameraReportsWidth && cameraReportsHeight) {
+    int64_t maxWidth, maxHeight;
+    res = PylonDeviceGetIntegerFeature(pylonsrc->deviceHandle, "WidthMax", &maxWidth);
+    pylonsrc->maxWidth = (gint)maxWidth;
     PYLONC_CHECK_ERROR(pylonsrc, res);
-    res = PylonDeviceGetIntegerFeature(pylonsrc->deviceHandle, "HeightMax", &pylonsrc->maxHeight);
+    res = PylonDeviceGetIntegerFeature(pylonsrc->deviceHandle, "HeightMax", &maxHeight);
+    pylonsrc->maxHeight = (gint)maxHeight;
     PYLONC_CHECK_ERROR(pylonsrc, res);
   }
-  GST_DEBUG_OBJECT(pylonsrc, "Max resolution is %"PRId64"x%"PRId64".", pylonsrc->maxWidth, pylonsrc->maxHeight);
+  GST_DEBUG_OBJECT(pylonsrc, "Max resolution is %dx%d.", pylonsrc->maxWidth, pylonsrc->maxHeight);
 
   // If custom resolution is set, check if it's even possible and set it
   if(pylonsrc->height != 0 || pylonsrc->width != 0) {
@@ -1106,7 +1108,7 @@ gst_pylonsrc_start (GstBaseSrc * src)
       GST_ELEMENT_ERROR(pylonsrc, RESOURCE, FAILED, ("Failed to initialise the camera"), ("Wrong width specified"));
       goto error;
     } else if(pylonsrc->width == 0) {       
-        pylonsrc->width = width;      
+      pylonsrc->width = (gint)width;
     }
 
     if(pylonsrc->height > pylonsrc->maxHeight) {
@@ -1114,11 +1116,11 @@ gst_pylonsrc_start (GstBaseSrc * src)
       GST_ELEMENT_ERROR(pylonsrc, RESOURCE, FAILED, ("Failed to initialise the camera"), ("Wrong height specified"));
       goto error;
     } else if (pylonsrc->height == 0){       
-      pylonsrc->height = height;
+      pylonsrc->height = (gint)height;
     }
   } else {
-    pylonsrc->height = height;
-    pylonsrc->width = width;
+    pylonsrc->height = (gint)height;
+    pylonsrc->width = (gint)width;
   }
 
   // Set the final resolution
@@ -1126,7 +1128,7 @@ gst_pylonsrc_start (GstBaseSrc * src)
   PYLONC_CHECK_ERROR(pylonsrc, res);
   res = PylonDeviceSetIntegerFeature(pylonsrc->deviceHandle, "Height", pylonsrc->height);
   PYLONC_CHECK_ERROR(pylonsrc, res);
-  GST_MESSAGE_OBJECT(pylonsrc, "Setting resolution to %" PRId64 "x%" PRId64 ".", pylonsrc->width, pylonsrc->height);
+  GST_MESSAGE_OBJECT(pylonsrc, "Setting resolution to %dx%d.", pylonsrc->width, pylonsrc->height);
 
   // Set the offset
   _Bool cameraReportsOffsetX = PylonDeviceFeatureIsImplemented(pylonsrc->deviceHandle, "OffsetX");
@@ -1152,9 +1154,9 @@ gst_pylonsrc_start (GstBaseSrc * src)
         if(maxoffsetx >= pylonsrc->offsetx) {
           res = PylonDeviceSetIntegerFeature(pylonsrc->deviceHandle, "OffsetX", pylonsrc->offsetx);
           PYLONC_CHECK_ERROR(pylonsrc, res);
-          GST_DEBUG_OBJECT(pylonsrc, "Setting X offset to %"PRId64, pylonsrc->offsetx);
+          GST_DEBUG_OBJECT(pylonsrc, "Setting X offset to %d", pylonsrc->offsetx);
         } else {
-          GST_MESSAGE_OBJECT(pylonsrc, "Set X offset is above camera's capabilities. (%"PRId64" > %"PRId64")", pylonsrc->offsetx, maxoffsetx);
+          GST_MESSAGE_OBJECT(pylonsrc, "Set X offset is above camera's capabilities. (%d > %d)", pylonsrc->offsetx, maxoffsetx);
           GST_ELEMENT_ERROR(pylonsrc, RESOURCE, FAILED, ("Failed to initialise the camera"), ("Wrong offset for X axis specified"));
           goto error;
         }
@@ -1165,9 +1167,9 @@ gst_pylonsrc_start (GstBaseSrc * src)
         if(maxoffsety >= pylonsrc->offsety) {
           res = PylonDeviceSetIntegerFeature(pylonsrc->deviceHandle, "OffsetY", pylonsrc->offsety);
           PYLONC_CHECK_ERROR(pylonsrc, res);
-          GST_DEBUG_OBJECT(pylonsrc, "Setting Y offset to %"PRId64, pylonsrc->offsety);
+          GST_DEBUG_OBJECT(pylonsrc, "Setting Y offset to %d", pylonsrc->offsety);
         } else {
-          GST_MESSAGE_OBJECT(pylonsrc, "Set Y offset is above camera's capabilities. (%"PRId64" > %"PRId64")", pylonsrc->offsety, maxoffsety);
+          GST_MESSAGE_OBJECT(pylonsrc, "Set Y offset is above camera's capabilities. (%d > %d)", pylonsrc->offsety, maxoffsety);
           GST_ELEMENT_ERROR(pylonsrc, RESOURCE, FAILED, ("Failed to initialise the camera"), ("Wrong offset for Y axis specified"));
           goto error;
         }
@@ -1272,7 +1274,7 @@ gst_pylonsrc_start (GstBaseSrc * src)
       if(pylonsrc->testImage != 0) {
         GST_MESSAGE_OBJECT(pylonsrc, "Test image mode enabled.");
         char* ImageId = malloc(11);
-        snprintf(ImageId, 11, "Testimage%"PRId64, pylonsrc->testImage);
+        snprintf(ImageId, 11, "Testimage%d", pylonsrc->testImage);
         res = PylonDeviceFeatureFromString(pylonsrc->deviceHandle, "TestImageSelector", ImageId);
         free(ImageId);
         PYLONC_CHECK_ERROR(pylonsrc, res);
@@ -1327,7 +1329,7 @@ gst_pylonsrc_start (GstBaseSrc * src)
         GST_DEBUG_OBJECT(pylonsrc, "Saving bandwidth limits, but because throughput mode is disabled they will be ignored.");
       }
 
-      GST_DEBUG_OBJECT(pylonsrc, "Setting bandwidth limit to %"PRId64" B/s.", pylonsrc->maxBandwidth);
+      GST_DEBUG_OBJECT(pylonsrc, "Setting bandwidth limit to %d B/s.", pylonsrc->maxBandwidth);
       res = PylonDeviceSetIntegerFeature(pylonsrc->deviceHandle, "DeviceLinkThroughputLimit", pylonsrc->maxBandwidth);
       PYLONC_CHECK_ERROR(pylonsrc, res);
     }
@@ -2034,7 +2036,7 @@ gst_pylonsrc_start (GstBaseSrc * src)
       goto error;
     }
 
-    GST_DEBUG_OBJECT(pylonsrc, "With current settings the camera requires %"PRId64"/%"PRId64" B/s (%.1lf out of %.1lf MB/s) of bandwidth.", throughput, linkSpeed, (double)throughput/1000000, (double)linkSpeed/1000000);
+    GST_DEBUG_OBJECT(pylonsrc, "With current settings the camera requires %d/%d B/s (%.1lf out of %.1lf MB/s) of bandwidth.", (gint)throughput, (gint)linkSpeed, (double)throughput/1000000, (double)linkSpeed/1000000);
   } else {
     GST_WARNING_OBJECT(pylonsrc, "Couldn't determine link speed.");
   }
@@ -2059,7 +2061,7 @@ gst_pylonsrc_start (GstBaseSrc * src)
     PYLONC_CHECK_ERROR(pylonsrc, res);
 
     GST_DEBUG_OBJECT(pylonsrc, "The resulting framerate is %.0lf fps.", frameRate);
-    GST_DEBUG_OBJECT(pylonsrc, "Each frame is %"PRId32" bytes big (%.1lf MB). That's %.1lfMB/s.", pylonsrc->payloadSize, (double)pylonsrc->payloadSize/1000000, (pylonsrc->payloadSize*frameRate)/1000000);
+    GST_DEBUG_OBJECT(pylonsrc, "Each frame is %d bytes big (%.1lf MB). That's %.1lfMB/s.", pylonsrc->payloadSize, (double)pylonsrc->payloadSize/1000000, (pylonsrc->payloadSize*frameRate)/1000000);
   } else {
     GST_WARNING_OBJECT(pylonsrc, "Couldn't determine the resulting framerate.");
   }
